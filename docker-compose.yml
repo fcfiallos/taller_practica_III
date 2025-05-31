@@ -75,26 +75,29 @@ services:
       - SERVICE_PRECONDITION=namenode:8020 resourcemanager:8088
     networks:
       - hadoop-net
-
-  kaggle-downloader:
-    image: python:3.10-slim
-    container_name: kaggle-downloader
-    volumes:
-      - ./datasets:/datasets
-      - ./kaggle.json:/root/.kaggle/kaggle.json:ro
-    entrypoint: >
-      sh -c "
-      pip install kaggle &&
-      apt-get update && apt-get install -y unzip &&
-      mkdir -p /datasets/reddit_mental_health /datasets/student_depression /datasets/facial_expressions &&
-      kaggle datasets download -d neelghoshal/reddit-mental-health-data -p /datasets/reddit_mental_health &&
-      kaggle datasets download -d adilshamim8/student-depression-dataset -p /datasets/student_depression &&
-      kaggle datasets download -d khairunneesa/depression-dataset-on-facial-ecpression-images -p /datasets/facial_expressions &&
-      unzip '/datasets/reddit_mental_health/*.zip' -d /datasets/reddit_mental_health &&
-      unzip '/datasets/student_depression/*.zip' -d /datasets/student_depression &&
-      unzip '/datasets/facial_expressions/*.zip' -d /datasets/facial_expressions"
+  
+  spark:
+    image: bitnami/spark:3.5.1
+    container_name: spark
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_HOST=spark
+      - SPARK_MASTER_PORT=7077
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
+    ports:
+      - "4040:4040"
+      - "7077:7077"
+      - "8080:8080"
+    depends_on:
+      - namenode
+      - datanode1
+      - datanode2
+      - resourcemanager
     networks:
       - hadoop-net
+    volumes:
+      - ./spark-app:/opt/spark-app
+
 
 volumes:
   namenode-data:
