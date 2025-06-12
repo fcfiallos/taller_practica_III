@@ -143,18 +143,21 @@ services:
       - hadoop-net
 
   api:
-    build: ./api
+    build:
+      context: ./api
+      dockerfile: Dockerfile
     container_name: api
     ports:
       - "5000:5000"
     volumes:
-      - ./models/my_exported_saved_model:/models  # Montar el modelo directo al contenedor
-    environment:
-      - HDFS_URL=http://namenode:9870
+      - ./models:/app/models
+      - ./spark-jobs:/app/spark-jobs
+      - ./temp:/app/temp
     networks:
       - hadoop-net
     depends_on:
-      - namenode
+      - spark-master
+
 
 volumes:
   namenode-data:

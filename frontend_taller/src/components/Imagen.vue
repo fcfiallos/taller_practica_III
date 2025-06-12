@@ -38,83 +38,85 @@
         Confirmar Subida 📤
       </button>
     </div>
+    <div v-if="predictionResult !== null" class="prediction">
+      <p>
+        Emoción predicha: <strong>{{ predictionResult }}</strong>
+      </p>
+    </div>
   </div>
 </template>
 
 <script>
-import { ref } from "vue";
+import { predictEmotion } from "@/clients/apiClient"; // asegúrate que la ruta sea correcta
 
 export default {
   name: "Imagen",
-  setup() {
-    const photoSuccess = ref(false);
-    const isDragOver = ref(false);
-    const selectedImage = ref(null);
-    const fileInput = ref(null);
-
-    const triggerFileInput = () => {
-      fileInput.value.click();
+  data() {
+    return {
+      photoSuccess: false,
+      isDragOver: false,
+      selectedImage: null,
+      selectedFile: null,
+      predictionResult: null,
     };
-
-    const handleFileSelect = (event) => {
+  },
+  methods: {
+    triggerFileInput() {
+      this.$refs.fileInput.click();
+    },
+    handleFileSelect(event) {
       const file = event.target.files[0];
-      if (file) {
-        processFile(file);
-      }
-    };
-
-    const handleFileDrop = (event) => {
-      isDragOver.value = false;
+      if (file) this.processFile(file);
+    },
+    handleFileDrop(event) {
+      this.isDragOver = false;
       const file = event.dataTransfer.files[0];
-      if (file) {
-        processFile(file);
-      }
-    };
-
-    const processFile = (file) => {
+      if (file) this.processFile(file);
+    },
+    processFile(file) {
       if (file.type.startsWith("image/")) {
+        this.selectedFile = file;
         const reader = new FileReader();
         reader.onload = (e) => {
-          selectedImage.value = e.target.result;
+          this.selectedImage = e.target.result;
         };
         reader.readAsDataURL(file);
       } else {
         alert("Por favor selecciona un archivo de imagen válido.");
       }
-    };
+    },
+    removeImage() {
+      this.selectedImage = null;
+      this.selectedFile = null;
+      this.predictionResult = null;
+      if (this.$refs.fileInput) this.$refs.fileInput.value = "";
+    },
+    uploadImage() {
+      if (!this.selectedImage) return;
 
-    const removeImage = () => {
-      selectedImage.value = null;
-      if (fileInput.value) {
-        fileInput.value.value = "";
-      }
-    };
+      const file = this.$refs.fileInput.files[0];
+      const formData = new FormData();
+      formData.append("file", file);
 
-    const uploadImage = () => {
-      // Simular subida de imagen
-      console.log("Imagen subida:", selectedImage.value);
-      photoSuccess.value = true;
-
-      setTimeout(() => {
-        removeImage();
-        photoSuccess.value = false;
-      }, 2000);
-    };
-
-    return {
-      photoSuccess,
-      isDragOver,
-      selectedImage,
-      fileInput,
-      triggerFileInput,
-      handleFileSelect,
-      handleFileDrop,
-      removeImage,
-      uploadImage,
-    };
+      fetch("http://localhost:5000/predict", {
+        method: "POST",
+        body: formData,
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          this.photoSuccess = true;
+          console.log("Predicción:", data);
+          alert(`Emoción: ${data.emotion} (Confianza: ${data.confidence})`);
+        })
+        .catch((err) => {
+          console.error("Error:", err);
+          alert("Error al predecir la emoción.");
+        });
+    },
   },
 };
 </script>
+
 
 <style scoped>
 .view-container {

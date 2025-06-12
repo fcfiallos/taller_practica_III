@@ -1,41 +1,66 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-from hdfs import InsecureClient
-import tensorflow as tf
+import os
 import numpy as np
 from PIL import Image
 import io
-import os
+import tensorflow as tf
+import subprocess
 
 app = Flask(__name__)
-CORS(app)
 
-HDFS_URL = os.environ.get("HDFS_URL", "http://namenode:9870")
-client = InsecureClient(HDFS_URL, user='root')
+# Ruta a tu modelo guardado
+MODEL_PATH = "/app/models/my_exported_saved_model"
+model = tf.keras.models.load_model(MODEL_PATH)
 
-# Cargar modelo al iniciar
-model = tf.saved_model.load("/models")
+# Función para ejecutar Spark
+def run_spark_preprocess(input_path, output_path):
+    spark_submit_cmd = [
+        "/opt/bitnami/spark/bin/spark-submit",
+        "--master", "spark://spark-master:7077",
+        "/app/spark-jobs/preprocess_image.py",
+        input_path,
+        output_path
+    ]
+    result = subprocess.run(spark_submit_cmd, capture_output=True, text=True)
+    print("Spark stdout:", result.stdout)
+    print("Spark stderr:", result.stderr)
+    if result.returncode != 0:
+        raise Exception("Spark preprocessing failed")
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    file = request.files['image']
-    filename = file.filename
-    hdfs_path = f"/images/{filename}"
+    if 'file' not in request.files:
+        return jsonify({'error': 'No se encontró imagen'}), 400
 
-    # Subir imagen al HDFS
-    client.write(hdfs_path, file, overwrite=True)
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'Nombre de archivo vacío'}), 400
 
-    # Leer la imagen desde HDFS
-    with client.read(hdfs_path) as reader:
-        img = Image.open(reader).convert('RGB').resize((128, 128))
-        img_array = np.array(img) / 255.0
-        img_array = img_array[np.newaxis, ...]
+    # Guardar imagen temporalmente
+    temp_input_path = '/app/temp/input.jpg'
+    temp_output_path = '/app/temp/output.npy'
+    image = Image.open(file.stream)
+    image.save(temp_input_path)
 
-    # Predicción
-    prediction = model(img_array)
-    predicted_class = np.argmax(prediction.numpy())
+    # Ejecutar Spark para preprocesamiento
+    try:
+        run_spark_preprocess(temp_input_path, temp_output_path)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    return jsonify({'prediction': int(predicted_class)})
+    # Cargar imagen procesada
+    img_array = np.load(temp_output_path).astype('float32') / 255.0
+    img_array = img_array.reshape(1, 48, 48, 1)
+
+    # Predecir
+    prediction = model.predict(img_array)
+    predicted_class = int(np.argmax(prediction))
+    confidence = float(np.max(prediction))
+
+    return jsonify({
+        'emotion': predicted_class,
+        'confidence': round(confidence, 4)
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
