@@ -127,36 +127,37 @@ services:
     networks:
       - hadoop-net
 
-  jupyter:
-    image: jupyter/pyspark-notebook
-    container_name: jupyter
-    ports:
-      - "8888:8888"
-    volumes:
-    - ./notebooks:/home/jovyan/work
-    - ./models:/home/jovyan/models  # Montar directorio de modelos
-    environment:
-      - SPARK_MASTER=spark://spark-master:7077
-    depends_on:
-      - spark-master
-    networks:
-      - hadoop-net
+  #jupyter:
+   # image: jupyter/pyspark-notebook
+    #container_name: jupyter
+    #ports:
+     # - "8888:8888"
+    #volumes:
+    #- ./notebooks:/home/jovyan/work
+    #- ./models:/home/jovyan/models  # Montar directorio de modelos
+    #environment:
+     # - SPARK_MASTER=spark://spark-master:7077
+    #depends_on:
+     # - spark-master
+    #networks:
+     # - hadoop-net
 
-  api:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
-    container_name: api
+  emotion-api:
+    build: ./api
+    container_name: emotion-api
     ports:
       - "5000:5000"
     volumes:
-      - ./models:/app/models
-      - ./spark-jobs:/app/spark-jobs
-      - ./temp:/app/temp
-    networks:
-      - hadoop-net
+      - ./api:/app
+      - ./models:/app/models  # Montar los modelos
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - HDFS_NAMENODE=hdfs://namenode:8020
     depends_on:
       - spark-master
+      - namenode
+    networks:
+      - hadoop-net
 
 
 volumes:

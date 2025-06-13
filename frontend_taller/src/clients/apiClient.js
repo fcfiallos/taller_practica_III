@@ -1,23 +1,34 @@
-import axios from 'axios'
+import axios from 'axios';
 
-const API_URL = "http://localhost:5000";
-
-export async function predictEmotion(file) {
-  const formData = new FormData();
-  formData.append("image", file);
-
-  try {
-    const response = await fetch(`${API_URL}/predict`, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) throw new Error("Error en la predicción");
-
-    const data = await response.json();
-    return data.prediction;
-  } catch (error) {
-    console.error("Error al predecir:", error);
-    throw error;
+const apiClient = axios.create({
+  baseURL: process.env.VUE_APP_API_URL || 'http://localhost:5000',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'multipart/form-data',
   }
-}
+});
+
+export default {
+  async uploadImage(file) {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await apiClient.post('/predict', formData);
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      throw error;
+    }
+  },
+  
+  async checkHealth() {
+    try {
+      const response = await apiClient.get('/health');
+      return response.data;
+    } catch (error) {
+      console.error('API health check failed:', error);
+      throw error;
+    }
+  }
+};

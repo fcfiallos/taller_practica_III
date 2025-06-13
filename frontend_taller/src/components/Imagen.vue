@@ -3,7 +3,11 @@
     <h2 class="view-title">Sube tu Foto</h2>
 
     <div v-if="photoSuccess" class="success-message">
-      ¡Foto cargada exitosamente! 📸
+      ¡Foto procesada exitosamente! 📸
+    </div>
+
+    <div v-if="errorMessage" class="error-message">
+      {{ errorMessage }}
     </div>
 
     <div
@@ -34,89 +38,142 @@
       <br />
       <button @click="removeImage" class="remove-btn">Remover imagen ❌</button>
       <br /><br />
-      <button @click="uploadImage" class="submit-btn">
-        Confirmar Subida 📤
+      <button 
+        @click="uploadImage" 
+        class="submit-btn"
+        :disabled="isLoading"
+      >
+        <span v-if="!isLoading">Confirmar Subida 📤</span>
+        <span v-else>Procesando...</span>
       </button>
-    </div>
-    <div v-if="predictionResult !== null" class="prediction">
-      <p>
-        Emoción predicha: <strong>{{ predictionResult }}</strong>
-      </p>
+
+      <div v-if="predictionResult" class="results-container">
+        <h3>Resultado del análisis:</h3>
+        <div class="emotion-results">
+          <div 
+            v-for="(score, emotion) in predictionResult" 
+            :key="emotion"
+            class="emotion-row"
+          >
+            <span class="emotion-label">{{ emotion }}:</span>
+            <span class="emotion-value">{{ (score * 100).toFixed(1) }}%</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import { predictEmotion } from "@/clients/apiClient"; // asegúrate que la ruta sea correcta
+import { ref } from "vue";
+import apiClient from "../clients/apiClient";
 
 export default {
   name: "Imagen",
-  data() {
-    return {
-      photoSuccess: false,
-      isDragOver: false,
-      selectedImage: null,
-      selectedFile: null,
-      predictionResult: null,
+  setup() {
+    const photoSuccess = ref(false);
+    const isDragOver = ref(false);
+    const selectedImage = ref(null);
+    const fileInput = ref(null);
+    const file = ref(null); // Almacenar el objeto File
+    const isLoading = ref(false);
+    const predictionResult = ref(null);
+    const errorMessage = ref(null);
+
+    const triggerFileInput = () => {
+      fileInput.value.click();
     };
-  },
-  methods: {
-    triggerFileInput() {
-      this.$refs.fileInput.click();
-    },
-    handleFileSelect(event) {
-      const file = event.target.files[0];
-      if (file) this.processFile(file);
-    },
-    handleFileDrop(event) {
-      this.isDragOver = false;
-      const file = event.dataTransfer.files[0];
-      if (file) this.processFile(file);
-    },
-    processFile(file) {
-      if (file.type.startsWith("image/")) {
-        this.selectedFile = file;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          this.selectedImage = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      } else {
-        alert("Por favor selecciona un archivo de imagen válido.");
+
+    const handleFileSelect = (event) => {
+      const selectedFile = event.target.files[0];
+      if (selectedFile) {
+        file.value = selectedFile;
+        processFile(selectedFile);
       }
-    },
-    removeImage() {
-      this.selectedImage = null;
-      this.selectedFile = null;
-      this.predictionResult = null;
-      if (this.$refs.fileInput) this.$refs.fileInput.value = "";
-    },
-    uploadImage() {
-      if (!this.selectedImage) return;
+    };
 
-      const file = this.$refs.fileInput.files[0];
-      const formData = new FormData();
-      formData.append("file", file);
+    const handleFileDrop = (event) => {
+      isDragOver.value = false;
+      const droppedFile = event.dataTransfer.files[0];
+      if (droppedFile) {
+        file.value = droppedFile;
+        processFile(droppedFile);
+      }
+    };
 
-      fetch("http://localhost:5000/predict", {
-        method: "POST",
-        body: formData,
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          this.photoSuccess = true;
-          console.log("Predicción:", data);
-          alert(`Emoción: ${data.emotion} (Confianza: ${data.confidence})`);
-        })
-        .catch((err) => {
-          console.error("Error:", err);
-          alert("Error al predecir la emoción.");
-        });
-    },
+    const processFile = (fileToProcess) => {
+      if (fileToProcess.size > 5 * 1024 * 1024) {
+        errorMessage.value = "El archivo es demasiado grande (máximo 5MB)";
+        return;
+      }
+
+      if (!fileToProcess.type.startsWith("image/")) {
+        errorMessage.value = "Por favor selecciona un archivo de imagen válido";
+        return;
+      }
+
+      errorMessage.value = null;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        selectedImage.value = e.target.result;
+      };
+      reader.readAsDataURL(fileToProcess);
+    };
+
+    const removeImage = () => {
+      selectedImage.value = null;
+      file.value = null;
+      predictionResult.value = null;
+      errorMessage.value = null;
+      if (fileInput.value) {
+        fileInput.value.value = "";
+      }
+    };
+
+    const uploadImage = async () => {
+      if (!file.value) return;
+
+      isLoading.value = true;
+      errorMessage.value = null;
+      photoSuccess.value = false;
+      predictionResult.value = null;
+
+      try {
+        // Verificar salud del API primero
+        await apiClient.checkHealth();
+        
+        // Subir imagen y obtener predicción
+        const result = await apiClient.uploadImage(file.value);
+        
+        photoSuccess.value = true;
+        predictionResult.value = result.prediction;
+        
+        console.log("Predicción recibida:", result);
+      } catch (error) {
+        errorMessage.value = "Error al procesar la imagen. Intenta nuevamente.";
+        console.error("Error:", error);
+      } finally {
+        isLoading.value = false;
+      }
+    };
+
+    return {
+      photoSuccess,
+      isDragOver,
+      selectedImage,
+      fileInput,
+      isLoading,
+      predictionResult,
+      errorMessage,
+      triggerFileInput,
+      handleFileSelect,
+      handleFileDrop,
+      removeImage,
+      uploadImage,
+    };
   },
 };
 </script>
-
 
 <style scoped>
 .view-container {
