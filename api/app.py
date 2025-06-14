@@ -1,19 +1,14 @@
+import os
+import uuid
+import tempfile
+import numpy as np
+from PIL import Image
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from spark_jobs import process_image_and_predict
 from hdfs_utils import HDFSClient
-import uuid
-import os
-import tempfile
-import logging
-
-# Configurar logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
+import tensorflow as tf
 app = FastAPI()
 
-# Configuración CORS más permisiva para desarrollo
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,48 +17,53 @@ app.add_middleware(
     expose_headers=["*"]
 )
 
-# Configuración HDFS
+MODEL_PATH = 'models/my_exported_saved_model'
+model = tf.keras.layers.TFSMLayer(MODEL_PATH, call_endpoint='serving_default')
+
+HDFS_URL = "http://namenode:9870"
 HDFS_UPLOAD_DIR = "/uploads"
-HDFS_PROCESSED_DIR = "/processed"
+hdfs_client = HDFSClient(HDFS_URL)
 
 @app.post("/predict")
 async def predict_emotion(file: UploadFile = File(...)):
     try:
-        # 1. Validar tipo de archivo
-        if not file.content_type.startswith('image/'):
-            raise HTTPException(400, "Solo se aceptan imágenes")
+        if not (
+            file.content_type in ["image/jpeg", "image/png"]
+            or file.filename.lower().endswith((".jpg", ".jpeg", ".png"))
+        ):
+            raise HTTPException(400, "Solo se aceptan imágenes JPG, JPEG o PNG")
         
-        # 2. Leer contenido
-        file_bytes = await file.read()
+        # Leer y procesar la imagen directamente
+        img = Image.open(file.file).convert("L")
+        img = img.resize((48, 48))
         
-        # 3. Guardar original en HDFS
-        hdfs_client = HDFSClient("http://namenode:9870")
-        file_ext = os.path.splitext(file.filename)[1] or '.jpg'
-        hdfs_path = f"{HDFS_UPLOAD_DIR}/{uuid.uuid4()}{file_ext}"
-        
-        with tempfile.NamedTemporaryFile() as tmp:
-            tmp.write(file_bytes)
+        # Guardar temporalmente para HDFS
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+            img.save(tmp, format="PNG")
             tmp.flush()
-            hdfs_client.save_file(hdfs_path, tmp.name)
+            local_path = tmp.name
         
-        # 4. Procesar y predecir
-        result = process_image_and_predict(hdfs_path)
+        # Subir a HDFS
+        hdfs_filename = f"{uuid.uuid4()}.png"
+        hdfs_path = f"{HDFS_UPLOAD_DIR}/{hdfs_filename}"
+        hdfs_client.save_file(hdfs_path, local_path)
         
-        if result["status"] != "success":
-            raise HTTPException(500, result["message"])
+        # Procesar para predicción
+        img_array = np.array(img).astype("float32") / 255.0
+        img_array = np.expand_dims(img_array, axis=(0, -1)) 
+        img_tensor = tf.convert_to_tensor(img_array, dtype=tf.float32)
+
+        prediction = model(img_tensor).numpy()
         
-        return result
-        
+        os.remove(local_path)
+        return {
+            "status": "success",
+            "prediction": prediction.tolist()[0],
+            "hdfs_path": hdfs_path
+        }
     except Exception as e:
         raise HTTPException(500, str(e))
-    
-# ...existing code...
 
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000)
-# ...existing code...
