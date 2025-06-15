@@ -1,8 +1,6 @@
+tensorflow==2.16.1
 fastapi
 uvicorn[standard]
-python-multipart
-tensorflow==2.16.1
-pandas
+pillow
 numpy
-Pillow
-hdfs
+python-multipart

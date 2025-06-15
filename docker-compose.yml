@@ -130,12 +130,16 @@ services:
       - hadoop-net
 
   emotion-api:
-    build: ./api
+    build:
+      context: ./api
     container_name: emotion-api
     ports:
       - "8000:8000"
     volumes:
-      - ./models:/app/models
+      - ./api/models:/app/models
+      - ./api/app:/app/app
+    depends_on:
+      - spark-master
     networks:
       - hadoop-net
 
