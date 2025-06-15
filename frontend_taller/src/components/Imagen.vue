@@ -2,7 +2,7 @@
   <div class="view-container">
     <h2 class="view-title">Sube tu Foto</h2>
 
-    <div v-if="photoSuccess" class="success-message">
+    <div v-if="photoSuccess && predictionResult" class="success-message">
       ¡Foto procesada exitosamente! 📸
     </div>
 
@@ -38,136 +38,123 @@
       <br />
       <button @click="removeImage" class="remove-btn">Remover imagen ❌</button>
       <br /><br />
-      <button 
-        @click="uploadImage" 
-        class="submit-btn"
-        :disabled="isLoading"
-      >
+      <button @click="uploadImage" class="submit-btn" :disabled="isLoading">
         <span v-if="!isLoading">Confirmar Subida 📤</span>
         <span v-else>Procesando...</span>
       </button>
 
       <div v-if="predictionResult" class="results-container">
-        <h3>Resultado del análisis:</h3>
-        <div class="emotion-results">
-          <div 
-            v-for="(score, emotion) in predictionResult" 
-            :key="emotion"
-            class="emotion-row"
-          >
-            <span class="emotion-label">{{ emotion }}:</span>
-            <span class="emotion-value">{{ (score * 100).toFixed(1) }}%</span>
-          </div>
-        </div>
+    <h3>Resultado del análisis:</h3>
+    <div class="emotion-results">
+      <div class="emotion-row">
+        <span class="emotion-label">Emoción detectada:</span>
+        <span class="emotion-value">{{ predictionResult}}</span>
       </div>
+    </div>
+  </div>
     </div>
   </div>
 </template>
 
 <script>
 import { ref } from "vue";
-import apiClient from "../clients/apiClient";
+import apiClient from "@/clients/apiClient"; // Asegúrate de que la ruta sea correcta
+
+const imageFile = ref(null);
+const selectedImage = ref(null);
+const isDragOver = ref(false);
+const isLoading = ref(false);
+const photoSuccess = ref(false);
+const errorMessage = ref("");
+const predictionResult = ref(null);
+
+const triggerFileInput = () => {
+  errorMessage.value = "";
+  photoSuccess.value = false;
+  predictionResult.value = null;
+  document.querySelector(".file-input").click();
+};
+
+const handleFileSelect = (event) => {
+  errorMessage.value = "";
+  photoSuccess.value = false;
+  predictionResult.value = null;
+  const file = event.target.files[0];
+  processFile(file);
+};
+
+const handleFileDrop = (event) => {
+  isDragOver.value = false;
+  errorMessage.value = "";
+  photoSuccess.value = false;
+  predictionResult.value = null;
+  const file = event.dataTransfer.files[0];
+  processFile(file);
+};
+
+const processFile = (file) => {
+  if (file && file.type.startsWith("image/")) {
+    if (file.size > 5 * 1024 * 1024) {
+      errorMessage.value = "La imagen no debe superar los 5MB.";
+      return;
+    }
+    imageFile.value = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      selectedImage.value = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  } else {
+    errorMessage.value = "Por favor selecciona un archivo de imagen válido.";
+  }
+};
+
+const removeImage = () => {
+  imageFile.value = null;
+  selectedImage.value = null;
+  predictionResult.value = null;
+  photoSuccess.value = false;
+  errorMessage.value = "";
+};
+
+const uploadImage = async () => {
+  if (!imageFile.value) {
+    errorMessage.value = "No se ha seleccionado ninguna imagen.";
+    return;
+  }
+  isLoading.value = true;
+  errorMessage.value = "";
+  photoSuccess.value = false;
+  predictionResult.value = null;
+  try {
+    const result = await apiClient.predictEmotion(imageFile.value);
+    console.log("Resultado de la API:", result);
+        // ...existing code...
+    predictionResult.value = result.emoción; // <-- Usa la tilde
+    console.log("Resultado de la predicción:", predictionResult.value);
+    photoSuccess.value = true;
+    // ...existing code...
+  } catch (err) {
+    errorMessage.value = "Hubo un error al subir la imagen o procesarla.";
+  } finally {
+    isLoading.value = false;
+  }
+};
 
 export default {
-  name: "Imagen",
   setup() {
-    const photoSuccess = ref(false);
-    const isDragOver = ref(false);
-    const selectedImage = ref(null);
-    const fileInput = ref(null);
-    const file = ref(null); // Almacenar el objeto File
-    const isLoading = ref(false);
-    const predictionResult = ref(null);
-    const errorMessage = ref(null);
-
-    const triggerFileInput = () => {
-      fileInput.value.click();
-    };
-
-    const handleFileSelect = (event) => {
-      const selectedFile = event.target.files[0];
-      if (selectedFile) {
-        file.value = selectedFile;
-        processFile(selectedFile);
-      }
-    };
-
-    const handleFileDrop = (event) => {
-      isDragOver.value = false;
-      const droppedFile = event.dataTransfer.files[0];
-      if (droppedFile) {
-        file.value = droppedFile;
-        processFile(droppedFile);
-      }
-    };
-
-    const processFile = (fileToProcess) => {
-      if (fileToProcess.size > 5 * 1024 * 1024) {
-        errorMessage.value = "El archivo es demasiado grande (máximo 5MB)";
-        return;
-      }
-
-      if (!fileToProcess.type.startsWith("image/")) {
-        errorMessage.value = "Por favor selecciona un archivo de imagen válido";
-        return;
-      }
-
-      errorMessage.value = null;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        selectedImage.value = e.target.result;
-      };
-      reader.readAsDataURL(fileToProcess);
-    };
-
-    const removeImage = () => {
-      selectedImage.value = null;
-      file.value = null;
-      predictionResult.value = null;
-      errorMessage.value = null;
-      if (fileInput.value) {
-        fileInput.value.value = "";
-      }
-    };
-
-    const uploadImage = async () => {
-      if (!file.value) return;
-
-      isLoading.value = true;
-      errorMessage.value = null;
-      photoSuccess.value = false;
-      predictionResult.value = null;
-
-      try {
-        // Verificar salud del API primero
-        await apiClient.checkHealth();
-        
-        // Subir imagen y obtener predicción
-        const result = await apiClient.uploadImage(file.value);
-        
-        photoSuccess.value = true;
-        predictionResult.value = result.prediction;
-        
-        console.log("Predicción recibida:", result);
-      } catch (error) {
-        errorMessage.value = "Error al procesar la imagen. Intenta nuevamente.";
-        console.error("Error:", error);
-      } finally {
-        isLoading.value = false;
-      }
-    };
-
     return {
-      photoSuccess,
-      isDragOver,
+      imageFile,
       selectedImage,
-      fileInput,
+      isDragOver,
       isLoading,
-      predictionResult,
+      photoSuccess,
       errorMessage,
+      predictionResult,
       triggerFileInput,
       handleFileSelect,
       handleFileDrop,
+      processFile,
       removeImage,
       uploadImage,
     };
@@ -311,7 +298,15 @@ export default {
   text-align: center;
   animation: slideInDown 0.5s ease-out;
 }
-
+.error-message {
+  background: linear-gradient(45deg, #ff6b6b, #ffb199);
+  color: white;
+  padding: 1rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  text-align: center;
+  animation: slideInDown 0.5s ease-out;
+}
 @keyframes slideInDown {
   from {
     opacity: 0;
