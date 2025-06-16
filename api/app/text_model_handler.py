@@ -5,7 +5,7 @@ import numpy as np
 import pickle
 import os
 
-# --- 1. CONFIGURACIÓN Y CARGA INICIAL (se ejecuta una sola vez) ---
+# configuracion de carga inicial (se ejecuta una sola vez) 
 
 # Rutas a los artefactos del modelo dentro del contenedor Docker
 MODEL_DIR = "/app/models"
@@ -54,7 +54,7 @@ def _load_model_artifacts():
 vectorize_layer, text_model = _load_model_artifacts()
 
 
-# --- 2. FUNCIÓN DE PREDICCIÓN (la que llamará el endpoint) ---
+#  FUNCIÓN DE PREDICCIÓN (la que llamará el endpoint) ---
 
 def predict_depression(text: str) -> dict:
     """
