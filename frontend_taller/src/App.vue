@@ -16,17 +16,24 @@
         <div class="nav-buttons">
           <button
             class="nav-btn"
-            :class="{ active: currentView === 'form' }"
-            @click="currentView = 'form'"
+            :class="{ active: currentView === 'texto' }"
+            @click="currentView = 'texto'"
           >
-            📝 Formulario
+            📝 Modelo de Texto
+          </button>
+          <button
+            class="nav-btn"
+            :class="{ active: currentView === 'tabular' }"
+            @click="currentView = 'tabular'"
+          >
+            📊 Modelo Tabular
           </button>
           <button
             class="nav-btn"
             :class="{ active: currentView === 'photo' }"
             @click="currentView = 'photo'"
           >
-            📸 Subir Foto
+            📸 Modelo Imagen
           </button>
         </div>
       </div>
@@ -34,7 +41,8 @@
 
     <!-- Main content -->
     <main class="main-content">
-      <Formulario v-if="currentView === 'form'" />
+      <FormularioTexto v-if="currentView === 'texto'" />
+      <FormularioTabular v-if="currentView === 'tabular'" />
       <Imagen v-if="currentView === 'photo'" />
     </main>
   </div>
@@ -42,17 +50,19 @@
 
 <script>
 import { ref } from "vue";
-import Formulario from "./components/Formulario.vue";
+import FormularioTexto from "./components/FormularioTexto.vue";
+import FormularioTabular from "./components/FormularioTabular.vue";
 import Imagen from "./components/Imagen.vue";
 
 export default {
   name: "App",
   components: {
-    Formulario,
+    FormularioTexto,
+    FormularioTabular,
     Imagen,
   },
   setup() {
-    const currentView = ref("form");
+    const currentView = ref("texto");
 
     return {
       currentView,
@@ -162,7 +172,7 @@ export default {
 .nav-btn {
   background: rgba(255, 255, 255, 0.2);
   border: none;
-  color: white;
+  color: black;
   padding: 0.8rem 1.5rem;
   border-radius: 25px;
   cursor: pointer;

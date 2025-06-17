@@ -21,3 +21,20 @@ export default {
     }
   },
 };
+
+// La URL base de tu API. Cambia si es necesario.
+const API_URL = 'http://localhost:8000';
+// Función para llamar al endpoint de análisis de texto
+export const predictText = async (text) => {
+  const response= axios.post(`${API_URL}/predict_text/`, {
+    texto: text, // El cuerpo de la solicitud en formato JSON
+  });
+  return response;
+};
+
+// Función para llamar al endpoint de análisis de estudiante
+export const predictStudent = async (studentData) => {
+  // studentData debe ser un objeto JS que coincida con tu modelo Pydantic
+  const response= axios.post(`${API_URL}/predict_student/`, studentData);
+  return response;
+};

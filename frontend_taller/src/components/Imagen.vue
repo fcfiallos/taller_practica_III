@@ -47,8 +47,8 @@
     <h3>Resultado del análisis:</h3>
     <div class="emotion-results">
       <div class="emotion-row">
-        <span class="emotion-label">Emoción detectada:</span>
-        <span class="emotion-value">{{ predictionResult}}</span>
+        <span class="emotion-label">Emoción detectada: "</span>
+        <span class="emotion-value">{{ predictionResult}}"</span>
       </div>
     </div>
   </div>
