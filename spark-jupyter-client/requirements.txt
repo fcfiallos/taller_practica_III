@@ -1,0 +1,10 @@
+jupyterlab
+pyspark==3.5.0  
+pandas
+numpy
+scikit-learn
+joblib
+matplotlib
+seaborn
+tensorflow    
+pyarrow  

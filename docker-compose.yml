@@ -143,6 +143,19 @@ services:
     networks:
       - hadoop-net
 
+
+  jupyter-spark-client:
+    build:
+      context: ./spark-jupyter-client
+    container_name: jupyter-spark-client
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data:/app/datasets  
+      - ./notebooks:/app/notebooks
+    networks:
+      - hadoop-net
+
 volumes:
   namenode-data:
   datanode1-data:
@@ -151,3 +164,5 @@ volumes:
 networks:
   hadoop-net:
     driver: bridge
+
+
